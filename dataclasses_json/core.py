@@ -213,7 +213,7 @@ def _decode_dataclass(cls, kvs, infer_missing):
         if (field.name in overrides
                 and overrides[field.name].decoder is not None):
             # FIXME hack
-            if field_type is type(field_value):
+            if field_type is type(field_value) and overrides[field.name].decoder is None:
                 init_kwargs[field.name] = field_value
             else:
                 init_kwargs[field.name] = overrides[field.name].decoder(
