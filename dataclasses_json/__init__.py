@@ -5,8 +5,9 @@ from dataclasses_json.cfg import (config, global_config,
                                   Exclude, LetterCase, OnError)
 from dataclasses_json.undefined import CatchAll, Undefined
 
+
 from dataclasses_json.__version__ import __version__
 
 __all__ = ['DataClassJsonMixin', 'LetterCase', 'OnError', 'dataclass_json',
            'config', 'global_config', 'Exclude',
-           'CatchAll', 'Undefined']
+           'CatchAll', 'Undefined', ]
