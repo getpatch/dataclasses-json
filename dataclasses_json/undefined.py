@@ -70,7 +70,7 @@ class _RaiseUndefinedParameters(_UndefinedParameterAction):
                 cls=cls, kvs=kvs)
         if len(unknown) > 0:
             raise UndefinedParameterError(
-                f"Received undefined initialization arguments {unknown}")
+                f"Received undefined initialization arguments {', '.join(unknown)}")
         return known
 
 
