@@ -20,6 +20,7 @@ from uuid import UUID
 from typing_inspect import is_union_type  # type: ignore
 
 from dataclasses_json import cfg
+from dataclasses_json.errors import ErrorProcessor
 from dataclasses_json.utils import (_get_type_cons, _get_type_origin,
                                     _handle_undefined_parameters_safe,
                                     _is_collection, _is_mapping, _is_new_type,
@@ -162,6 +163,7 @@ def _decode_dataclass(cls, kvs, infer_missing):
     decode_names = _decode_letter_case_overrides(field_names, overrides)
     kvs = {decode_names.get(k, k): v for k, v in kvs.items()}
     missing_fields = {field for field in fields(cls) if field.name not in kvs}
+    on_error = (getattr(cls, "dataclass_json_config", {}) or {}).get("on_error", cfg.OnError.RAISE)
 
     for field in missing_fields:
         if field.default is not MISSING:
@@ -176,13 +178,21 @@ def _decode_dataclass(cls, kvs, infer_missing):
 
     init_kwargs = {}
     types = get_type_hints(cls)
+    error_processor = ErrorProcessor(on_error)
+
     for field in fields(cls):
         # The field should be skipped from being added
         # to init_kwargs as it's not intended as a constructor argument.
         if not field.init:
             continue
 
-        field_value = kvs[field.name]
+        try:
+            field_value = kvs[field.name]
+        except KeyError as exc:
+            if error_processor.add(ValueError(f"Missing field '{field.name}'")):
+                continue
+            raise
+
         field_type = types[field.name]
         if field_value is None:
             if not _is_optional(field_type):
@@ -210,32 +220,40 @@ def _decode_dataclass(cls, kvs, infer_missing):
 
             field_type = field_type.__supertype__
 
-        if (field.name in overrides
-                and overrides[field.name].decoder is not None):
-            # FIXME hack
-            if field_type is type(field_value):
-                init_kwargs[field.name] = field_value
+        try:
+            if (field.name in overrides
+                    and overrides[field.name].decoder is not None):
+                # FIXME hack
+                if field_type is type(field_value):
+                    init_kwargs[field.name] = field_value
+                else:
+                    init_kwargs[field.name] = overrides[field.name].decoder(
+                        field_value)
+            elif is_dataclass(field_type):
+                # FIXME this is a band-aid to deal with the value already being
+                # serialized when handling nested marshmallow schema
+                # proper fix is to investigate the marshmallow schema generation
+                # code
+                if is_dataclass(field_value):
+                    value = field_value
+                else:
+                    value = _decode_dataclass(field_type, field_value,
+                                              infer_missing)
+                init_kwargs[field.name] = value
+            elif _is_supported_generic(field_type) and field_type != str:
+                init_kwargs[field.name] = _decode_generic(field_type,
+                                                          field_value,
+                                                          infer_missing)
             else:
-                init_kwargs[field.name] = overrides[field.name].decoder(
-                    field_value)
-        elif is_dataclass(field_type):
-            # FIXME this is a band-aid to deal with the value already being
-            # serialized when handling nested marshmallow schema
-            # proper fix is to investigate the marshmallow schema generation
-            # code
-            if is_dataclass(field_value):
-                value = field_value
-            else:
-                value = _decode_dataclass(field_type, field_value,
-                                          infer_missing)
-            init_kwargs[field.name] = value
-        elif _is_supported_generic(field_type) and field_type != str:
-            init_kwargs[field.name] = _decode_generic(field_type,
-                                                      field_value,
-                                                      infer_missing)
-        else:
-            init_kwargs[field.name] = _support_extended_types(field_type,
-                                                              field_value)
+                init_kwargs[field.name] = _support_extended_types(field_type,
+                                                                  field_value)
+        except Exception as ex:
+            if error_processor.add(ex, f"field {field.name}"):
+                continue
+            raise
+
+    if error_processor:
+        raise error_processor.get_group_exception(f"Deserialization of {cls.__name__} issue")
 
     return cls(**init_kwargs)
 

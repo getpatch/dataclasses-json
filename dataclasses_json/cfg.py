@@ -1,4 +1,5 @@
 import functools
+import sys
 from enum import Enum
 from typing import Callable, Dict, Optional, TypeVar, Union
 
@@ -54,6 +55,13 @@ class LetterCase(Enum):
     PASCAL = pascalcase
 
 
+class OnError(Enum):
+    RAISE = 1
+
+    if sys.version_info >= (3, 11):
+        GROUP_AND_RAISE = 2
+
+
 def config(metadata: Optional[dict] = None, *,
            # TODO: these can be typed more precisely
            # Specifically, a Callable[A, B], where `B` is bound as a JSON type
@@ -64,6 +72,7 @@ def config(metadata: Optional[dict] = None, *,
            undefined: Optional[Union[str, Undefined]] = None,
            field_name: Optional[str] = None,
            exclude: Optional[Callable[[T], bool]] = None,
+           on_error: OnError = OnError.RAISE,
            ) -> Dict[str, dict]:
     if metadata is None:
         metadata = {}
@@ -106,5 +115,6 @@ def config(metadata: Optional[dict] = None, *,
 
     if exclude is not None:
         lib_metadata['exclude'] = exclude
+    lib_metadata['on_error'] = on_error
 
     return metadata
