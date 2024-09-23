@@ -60,6 +60,7 @@ class OnError(Enum):
 
     if sys.version_info >= (3, 11):
         GROUP_AND_RAISE = 2
+        GROUP_WITH_TRACEBACK_AND_RAISE = 3
 
 
 def config(metadata: Optional[dict] = None, *,

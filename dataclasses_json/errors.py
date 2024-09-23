@@ -33,5 +33,7 @@ class ErrorProcessor:
             return False
         for item in notes:
             exc.add_note(item)
+        if self.on_error == cfg.OnError.GROUP_WITH_TRACEBACK_AND_RAISE:
+            exc = exc.with_traceback(None)
         self.exceptions.append(exc)
         return True
